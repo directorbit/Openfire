@@ -1,1 +1,0 @@
-appx_notification_plugin/1.0/appx_notification_plugin-1.0.jar appx_offline_support_plugin/1.0/appx_offline_support_plugin-1.0.jar appx-common-plugin/1.0/appx-common-plugin-1.0.jar appx_myfatoorah_plugin/1.0/appx_myfatoorah_plugin-1.0.jar appx_cart_plugin/1.0/appx_cart_plugin-1.0.jar appx_reports_plugin/1.0/appx_reports_plugin-1.0.jar
