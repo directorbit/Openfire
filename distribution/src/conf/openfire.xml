@@ -22,27 +22,6 @@
         <securePort>9091</securePort>
     </adminConsole>
 
-    <connectionProvider>
-        <className>org.jivesoftware.database.DefaultConnectionProvider</className>
-    </connectionProvider>
-    <database>
-        <defaultProvider>
-            <driver>com.mysql.cj.jdbc.Driver</driver>
-            <serverURL>jdbc:mysql://spare.cluster-cxh5x6d1agni.us-east-2.rds.amazonaws.com/pro_db?rewriteBatchedStatements=true&amp;characterEncoding=UTF-8&amp;characterSetResults=UTF-8&amp;serverTimezone=UTC</serverURL>
-            <username>spare_admin</username>
-            <password>xZ5mB-vDh7sF-dL8uAn-XyW-Tz46r</password>
-            <testSQL>select 1</testSQL>
-            <testBeforeUse>false</testBeforeUse>
-            <testAfterUse>false</testAfterUse>
-            <testTimeout>PT0.5S</testTimeout>
-            <timeBetweenEvictionRuns>PT30S</timeBetweenEvictionRuns>
-            <minIdleTime>PT15M</minIdleTime>
-            <maxWaitTime>PT0.5S</maxWaitTime>
-            <minConnections>5</minConnections>
-            <maxConnections>25</maxConnections>
-            <connectionTimeout>1.0</connectionTimeout>
-        </defaultProvider>
-    </database>
     <locale>en</locale>
 
     <!-- Network settings. By default, Openfire will bind to all network interfaces.
