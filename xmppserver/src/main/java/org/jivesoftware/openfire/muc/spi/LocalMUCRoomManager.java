@@ -21,10 +21,7 @@ import org.jivesoftware.openfire.cluster.ClusteredCacheEntryListener;
 import org.jivesoftware.openfire.cluster.NodeID;
 import org.jivesoftware.openfire.event.GroupEventDispatcher;
 import org.jivesoftware.openfire.event.UserEventDispatcher;
-import org.jivesoftware.openfire.muc.MUCRole;
-import org.jivesoftware.openfire.muc.MUCRoom;
-import org.jivesoftware.openfire.muc.MultiUserChatService;
-import org.jivesoftware.openfire.muc.NotAllowedException;
+import org.jivesoftware.openfire.muc.*;
 import org.jivesoftware.openfire.spi.RoutingTableImpl;
 import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.cache.Cache;
@@ -315,23 +312,23 @@ public class LocalMUCRoomManager
                         Log.trace("These occupants of the room are recognized as living on our cluster node. Adding them from the cluster-based room: {}", localOccupantsToRestore.stream().map(OccupantManager.Occupant::getRealJID).map(JID::toString).collect(Collectors.joining( ", " )));
                         for (OccupantManager.Occupant localOccupantToRestore : localOccupantsToRestore ) {
                             // Get the Role for the local occupant from the local representation of the room, and add that to the cluster room.
-                            final MUCRole localOccupantRole = localRoom.getOccupantByFullJID(localOccupantToRestore.getRealJID());
+                            final MUCOccupant localOccupant = localRoom.getOccupantByFullJID(localOccupantToRestore.getRealJID());
 
-                            if (localOccupantRole == null) {
+                            if (localOccupant == null) {
                                 Log.trace("Trying to add occupant '{}' but no role for that occupant exists in the local room. Data inconsistency?", localOccupantToRestore.getRealJID());
                                 continue;
                             } else {
-                                Log.trace("Found localOccupantRole {} for localOccupantToRestore {}, client route = {}", localOccupantRole, localOccupantToRestore.getRealJID(), XMPPServer.getInstance().getRoutingTable().getClientRoute(localOccupantToRestore.getRealJID()));
+                                Log.trace("Found localOccupantRole {} for localOccupantToRestore {}, client route = {}", localOccupant, localOccupantToRestore.getRealJID(), XMPPServer.getInstance().getRoutingTable().getClientRoute(localOccupantToRestore.getRealJID()));
                             }
 
                             // OF-2165
                             // Check if the nickname of this occupant already existed for another user in the room.
                             // If it did, we need to kick the users out. With sincere apologies.
-                            String nickBeingAddedToRoom = localOccupantRole.getNickname();
+                            String nickBeingAddedToRoom = localOccupant.getNickname();
                             boolean occupantWasKicked = false;
                             try {
-                                final List<MUCRole> existingOccupantsWithSameNick = roomInCluster.getOccupantsByNickname(nickBeingAddedToRoom);
-                                final List<JID> otherUsersWithSameNick = existingOccupantsWithSameNick.stream().map(MUCRole::getUserAddress).filter(bareJid -> !bareJid.equals(localOccupantRole.getUserAddress())).collect(Collectors.toList());
+                                final List<MUCOccupant> existingOccupantsWithSameNick = roomInCluster.getOccupantsByNickname(nickBeingAddedToRoom);
+                                final List<JID> otherUsersWithSameNick = existingOccupantsWithSameNick.stream().map(MUCOccupant::getUserAddress).filter(bareJid -> !bareJid.equals(localOccupant.getUserAddress())).collect(Collectors.toList());
                                 if (!otherUsersWithSameNick.isEmpty()) {
 
                                     // We will be routing presences to several users. The routing table may not have
@@ -353,8 +350,8 @@ public class LocalMUCRoomManager
                                     // But that notifies other nodes as well about the new occupant. We don't want that, this is
                                     // entirely a local affair. Therefore perform two separate steps instead, without invoking
                                     // occupant joined events.
-                                    roomInCluster.occupants.add(localOccupantRole);
-                                    occupantManager.registerOccupantJoinedLocally(localOccupantRole.getRoleAddress().asBareJID(), localOccupantRole.getUserAddress(), localOccupantRole.getNickname());
+                                    roomInCluster.occupants.add(localOccupant);
+                                    occupantManager.registerOccupantJoinedLocally(localOccupant.getOccupantJID().asBareJID(), localOccupant.getUserAddress(), localOccupant.getNickname());
 
                                     // Just added. Now kick out.
                                     kickOccupantBecauseOfNicknameCollision(roomInCluster, nickBeingAddedToRoom, localUserToBeKickedFullJid, occupantManager);
@@ -369,7 +366,7 @@ public class LocalMUCRoomManager
                             }
 
                             if (!occupantWasKicked) {
-                                roomInCluster.addOccupantRole(localOccupantRole);
+                                roomInCluster.addOccupant(localOccupant);
                             } else {
                                 occupantsToRetain.remove(localOccupantToRestore);
                             }
@@ -383,7 +380,7 @@ public class LocalMUCRoomManager
                     }
 
                     // Sync room back to make cluster aware of changes.
-                    Log.debug("Re-added local room '{}' to cache, with occupants: {}", roomName, roomInCluster.getOccupants().stream().map(MUCRole::getUserAddress).map(JID::toString).collect(Collectors.joining( ", " )));
+                    Log.debug("Re-added local room '{}' to cache, with occupants: {}", roomName, roomInCluster.getOccupants().stream().map(MUCOccupant::getUserAddress).map(JID::toString).collect(Collectors.joining( ", " )));
                     ROOM_CACHE.put(roomName, roomInCluster);
                     // The implementation of this method does not allow configuration to be changed that warrants a update toe ROOM_CACHE_STATS
 
@@ -451,15 +448,17 @@ public class LocalMUCRoomManager
 
         // Kick the user from all the rooms that he/she had previously joined.
         try {
-            final Presence kickedPresence = room.kickOccupant(userToBeKicked, null, null, "Nickname clash with other user in the same room.");
+            final List<Presence> kickedPresences = room.kickOccupant(userToBeKicked, room.getSelfRepresentation().getAffiliation(), room.getSelfRepresentation().getRole(), null, null,"Nickname clash with other user in the same room.");
 
-            Log.trace("Kick presence to be sent to room: {}", kickedPresence);
+            for(final Presence kickedPresence : kickedPresences) {
+                Log.trace("Kick presence to be sent to room: {}", kickedPresence);
 
-            // Send the updated presence to the room occupants, but only those on this local node.
-            room.send(kickedPresence, room.getRole());
+                // Send the updated presence to the room occupants, but only those on this local node.
+                room.send(kickedPresence, room.getSelfRepresentation());
+            }
 
             Log.debug("Kicked occupant '{}' out of room '{}'.", userToBeKicked, room.getName());
-        } catch (final NotAllowedException e) {
+        } catch (final ForbiddenException | NotAllowedException e) {
             // Do nothing since we cannot kick owners or admins
             Log.debug("Occupant '{}' not kicked out of room '{}' because of '{}'.", userToBeKicked, room.getName(), e.getMessage());
         }
@@ -497,17 +496,17 @@ public class LocalMUCRoomManager
                 if (occupantsToRemove != null) {
                     Log.trace("These occupants of the room are recognized as living on another cluster node. Removing them from the room: {}", occupantsToRemove.stream().map(OccupantManager.Occupant::getRealJID).map(JID::toString).collect(Collectors.joining( ", " )));
                     for (OccupantManager.Occupant occupantToRemove : occupantsToRemove) {
-                        final MUCRole occupantRole = room.getOccupantByFullJID(occupantToRemove.getRealJID());
-                        if (occupantRole == null) {
+                        final MUCOccupant occupant = room.getOccupantByFullJID(occupantToRemove.getRealJID());
+                        if (occupant == null) {
                             Log.trace("Trying to remove occupant '{}' but no role for that occupant exists in the room. Data inconsistency?", occupantToRemove.getRealJID());
                             continue;
                         }
-                        room.removeOccupantRole(occupantRole);
+                        room.removeOccupant(occupant);
                     }
                 }
 
                 // Place room in cluster cache.
-                Log.trace("Re-added local room '{}' to cache, with occupants: {}", roomName, room.getOccupants().stream().map(MUCRole::getUserAddress).map(JID::toString).collect(Collectors.joining( ", " )));
+                Log.trace("Re-added local room '{}' to cache, with occupants: {}", roomName, room.getOccupants().stream().map(MUCOccupant::getUserAddress).map(JID::toString).collect(Collectors.joining( ", " )));
                 ROOM_CACHE.put(roomName, room);
             } finally {
                 lock.unlock();

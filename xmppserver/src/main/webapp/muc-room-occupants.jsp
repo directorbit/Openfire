@@ -1,7 +1,7 @@
 <%@ page contentType="text/html; charset=UTF-8" %>
 <%--
   -
-  - Copyright (C) 2004-2008 Jive Software, 2017-2022 Ignite Realtime Foundation. All rights reserved.
+  - Copyright (C) 2004-2008 Jive Software, 2017-2024 Ignite Realtime Foundation. All rights reserved.
   -
   - Licensed under the Apache License, Version 2.0 (the "License");
   - you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
   - limitations under the License.
 --%>
 
-<%@ page import="org.jivesoftware.openfire.muc.MUCRole,
+<%@ page import="org.jivesoftware.openfire.muc.MUCOccupant,
                  org.jivesoftware.openfire.muc.MUCRoom,
                  org.jivesoftware.util.ParamUtils,
                  org.jivesoftware.util.StringUtils,
@@ -30,6 +30,7 @@
 <%@ page import="org.jivesoftware.openfire.muc.NotAllowedException" %>
 <%@ page import="org.xmpp.packet.JID" %>
 <%@ page import="java.util.List" %>
+<%@ page import="org.jivesoftware.openfire.muc.MUCOccupant" %>
 
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
@@ -65,25 +66,18 @@
     // Kick nick specified
     if (kick != null) {
         String consoleKickReason = JiveGlobals.getProperty("admin.mucRoom.consoleKickReason", null);
-        List<MUCRole> roles = room.getOccupantsByNickname(nickName);
-        if (roles != null && !roles.isEmpty()) {
-            try {
-                for (MUCRole role : roles) {
-                    room.kickOccupant(role.getUserAddress(), XMPPServer.getInstance().createJID(webManager.getUser().getUsername(), null), null, consoleKickReason);
-                }
-                webManager.getMultiUserChatManager().getMultiUserChatService(roomJID).syncChatRoom(room);
+        List<MUCOccupant> occupants = room.getOccupantsByNickname(nickName);
+        if (occupants != null && !occupants.isEmpty()) {
+            for (MUCOccupant occupant : occupants) {
+                room.kickOccupant(occupant.getUserAddress(), room.getSelfRepresentation().getAffiliation(), room.getSelfRepresentation().getRole(), XMPPServer.getInstance().createJID(webManager.getUser().getUsername(), null), null, consoleKickReason);
+            }
+            webManager.getMultiUserChatManager().getMultiUserChatService(roomJID).syncChatRoom(room);
 
-                // Log the event
-                webManager.logEvent("kicked MUC occupant "+nickName+" from "+roomName, null);
-                // Done, so redirect
-                response.sendRedirect("muc-room-occupants.jsp?roomJID="+URLEncoder.encode(room.getJID().toBareJID(), "UTF-8")+"&nickName="+URLEncoder.encode(nickName, "UTF-8")+"&deletesuccess=true");
-                return;
-            }
-            catch (NotAllowedException e) {
-                // Done, so redirect
-                response.sendRedirect("muc-room-occupants.jsp?roomJID="+URLEncoder.encode(room.getJID().toBareJID(), "UTF-8")+"&nickName="+URLEncoder.encode(nickName, "UTF-8")+"&deletefailed=true");
-                return;
-            }
+            // Log the event
+            webManager.logEvent("kicked MUC occupant "+nickName+" from "+roomName, null);
+            // Done, so redirect
+            response.sendRedirect("muc-room-occupants.jsp?roomJID="+URLEncoder.encode(room.getJID().toBareJID(), "UTF-8")+"&nickName="+URLEncoder.encode(nickName, "UTF-8")+"&deletesuccess=true");
+            return;
         }
     }
 
@@ -163,13 +157,13 @@
         </tr>
     </thead>
     <tbody>
-        <% for (MUCRole role : room.getOccupants()) { %>
+        <% for (MUCOccupant occupant : room.getOccupants()) { %>
         <tr>
-            <td><%= StringUtils.escapeHTMLTags(role.getUserAddress().toString()) %></td>
-            <td><%= StringUtils.escapeHTMLTags(role.getNickname()) %></td>
-            <td><%= StringUtils.escapeHTMLTags(role.getRole().toString()) %></td>
-            <td><%= StringUtils.escapeHTMLTags(role.getAffiliation().toString()) %></td>
-            <td><a href="muc-room-occupants.jsp?roomJID=<%= URLEncoder.encode(room.getJID().toBareJID(), "UTF-8") %>&nickName=<%= URLEncoder.encode(role.getNickname(), "UTF-8") %>&kick=1&csrf=${csrf}" title="<fmt:message key="muc.room.occupants.kick"/>"><img src="images/delete-16x16.gif" alt="<fmt:message key="muc.room.occupants.kick"/>" /></a></td>
+            <td><%= StringUtils.escapeHTMLTags(occupant.getUserAddress().toString()) %></td>
+            <td><%= StringUtils.escapeHTMLTags(occupant.getNickname()) %></td>
+            <td><%= StringUtils.escapeHTMLTags(occupant.getRole().toString()) %></td>
+            <td><%= StringUtils.escapeHTMLTags(occupant.getAffiliation().toString()) %></td>
+            <td><a href="muc-room-occupants.jsp?roomJID=<%= URLEncoder.encode(room.getJID().toBareJID(), "UTF-8") %>&nickName=<%= URLEncoder.encode(occupant.getNickname(), "UTF-8") %>&kick=1&csrf=${csrf}" title="<fmt:message key="muc.room.occupants.kick"/>"><img src="images/delete-16x16.gif" alt="<fmt:message key="muc.room.occupants.kick"/>" /></a></td>
         </tr>
         <% } %>
     </tbody>

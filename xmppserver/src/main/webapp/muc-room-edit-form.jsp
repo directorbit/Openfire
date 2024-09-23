@@ -1,7 +1,7 @@
 <%@ page contentType="text/html; charset=UTF-8" %>
 <%--
   -
-  - Copyright (C) 2004-2008 Jive Software, 2017-2023 Ignite Realtime Foundation. All rights reserved.
+  - Copyright (C) 2004-2008 Jive Software, 2017-2024 Ignite Realtime Foundation. All rights reserved.
   -
   - Licensed under the Apache License, Version 2.0 (the "License");
   - you may not use this file except in compliance with the License.
@@ -33,7 +33,8 @@
 %>
 <%@ page import="org.jivesoftware.openfire.muc.NotAllowedException"%>
 <%@ page import="org.jivesoftware.openfire.muc.spi.MUCPersistenceManager" %>
-<%@ page import="org.jivesoftware.openfire.muc.MUCRole" %>
+<%@ page import="org.jivesoftware.openfire.muc.MUCOccupant" %>
+<%@ page import="org.jivesoftware.openfire.muc.Role" %>
 
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
@@ -226,13 +227,13 @@
 
             final FormField broadcastField = dataForm.addField("muc#roomconfig_presencebroadcast", null, null);
             if (broadcastModerator) {
-                broadcastField.addValue(MUCRole.Role.moderator);
+                broadcastField.addValue(Role.moderator);
             }
             if (broadcastParticipant) {
-                broadcastField.addValue(MUCRole.Role.participant);
+                broadcastField.addValue(Role.participant);
             }
             if (broadcastVisitor) {
-                broadcastField.addValue(MUCRole.Role.visitor);
+                broadcastField.addValue(Role.visitor);
             }
 
             dataForm.addField("muc#roomconfig_publicroom", null, null).addValue(publicRoom ? "1": "0");
@@ -262,9 +263,9 @@
                 Message message = new Message();
                 message.setType(Message.Type.groupchat);
                 message.setSubject(roomSubject);
-                message.setFrom(room.getRole().getRoleAddress());
-                message.setTo(room.getRole().getRoleAddress());
-                room.changeSubject(message, room.getRole());
+                message.setFrom(room.getSelfRepresentation().getOccupantJID());
+                message.setTo(room.getSelfRepresentation().getOccupantJID());
+                room.changeSubject(message, room.getSelfRepresentation());
             }
 
             // Create an IQ packet and set the dataform as the main fragment
@@ -272,7 +273,7 @@
             Element element = iq.setChildElement("query", "http://jabber.org/protocol/muc#owner");
             element.add(dataForm.getElement());
             // Send the IQ packet that will modify the room's configuration
-            room.getIQOwnerHandler().handleIQ(iq, room.getRole());
+            room.getIQOwnerHandler().handleIQ(iq, room.getSelfRepresentation());
 
             webManager.getMultiUserChatManager().getMultiUserChatService(roomJID).syncChatRoom(room);
 
@@ -321,9 +322,9 @@
             description = room.getDescription();
             roomSubject = room.getSubject();
             maxUsers = Integer.toString(room.getMaxUsers());
-            broadcastModerator = room.canBroadcastPresence(MUCRole.Role.moderator);
-            broadcastParticipant = room.canBroadcastPresence(MUCRole.Role.participant);
-            broadcastVisitor = room.canBroadcastPresence(MUCRole.Role.visitor);
+            broadcastModerator = room.canBroadcastPresence(Role.moderator);
+            broadcastParticipant = room.canBroadcastPresence(Role.participant);
+            broadcastVisitor = room.canBroadcastPresence(Role.visitor);
             password = room.getPassword();
             confirmPassword = room.getPassword();
             whois = (room.canAnyoneDiscoverJID() ? "anyone" : "moderator");

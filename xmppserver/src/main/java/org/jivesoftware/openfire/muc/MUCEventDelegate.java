@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2009 Jive Software, 2017-2018 Ignite Realtime Foundation. All rights reserved.
+ * Copyright (C) 2004-2009 Jive Software, 2017-2024 Ignite Realtime Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -133,16 +133,16 @@ public abstract class MUCEventDelegate {
             
             final String property = roomConfig.get("muc#roomconfig_roomowners");
             if (property != null) {
-                String jids[] = property.split(",");
+                String[] jids = property.split(",");
                 for (String jid : jids) {
-                    if (jid != null && jid.trim().length() != 0) {
+                    if (jid != null && !jid.trim().isEmpty()) {
                         room.addFirstOwner(new JID(jid.trim().toLowerCase()).asBareJID());
                     }
                 }
             }
             
             try {
-                room.unlock(room.getRole());
+                room.unlock(room.getSelfRepresentation().getAffiliation());
             } catch (ForbiddenException e) {
                 return false;
             }
